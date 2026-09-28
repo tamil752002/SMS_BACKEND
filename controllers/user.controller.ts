@@ -1,4 +1,4 @@
-auth.js
+import { Request, Response } from 'express';
 import bcrypt from "bcryptjs";
 import { getAllUsers, createUser } from "../services/user.service.js";
 import { createUserSchema } from "../validators/user.validator.js";
@@ -48,3 +48,4 @@ export const createUserController = async (
 
     res.status(201).json(user);
 };
+
