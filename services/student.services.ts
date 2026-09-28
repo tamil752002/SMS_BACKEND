@@ -1,36 +1,38 @@
-import { query, getClient } from "../database/db";
+import { query, getClient } from "../database/db.js";
+import { ICreateStudentDTO, IStudentFilter } from "../interfaces/student.interface.js";
 
-export const createStudent = async (
-    schoolId: string,
-    admissionNumber: string,
-    password: string,
-    firstName: string,
-    middleName: string | undefined,
-    lastName: string | undefined,
-    studentAadhar: string | undefined,
-    admissionDate: string,
-    fatherName: string,
-    fatherAadhar: string | undefined,
-    motherName: string,
-    motherAadhar: string | undefined,
-    studentClass: string,
-    section: string,
-    medium: string,
-    dateOfBirth: string,
-    gender: string,
-    admissionClass: string | undefined,
-    location: string | undefined,
-    penNumber: string | undefined,
-    caste: string | undefined,
-    subCaste: string | undefined,
-    religion: string | undefined,
-    motherTongue: string | undefined,
-    parentMobile: string,
-    mobileNumber: string,
-    emailAddress: string | undefined,
-    address: string | undefined,
-    profilePhoto: string | undefined
-) => {
+export const createStudent = async (data: ICreateStudentDTO) => {
+    const {
+        schoolId,
+        admissionNumber,
+        password,
+        firstName,
+        middleName,
+        lastName,
+        studentAadhar,
+        admissionDate,
+        fatherName,
+        fatherAadhar,
+        motherName,
+        motherAadhar,
+        studentClass,
+        section,
+        medium,
+        dateOfBirth,
+        gender,
+        admissionClass,
+        location,
+        penNumber,
+        caste,
+        subCaste,
+        religion,
+        motherTongue,
+        parentMobile,
+        mobileNumber,
+        emailAddress,
+        address,
+        profilePhoto
+    } = data;
 
     const client = await getClient();
 
@@ -207,7 +209,6 @@ export const createStudent = async (
         };
 
     } catch (err: any) {
-
         await client.query("ROLLBACK");
 
         console.error("========== CREATE STUDENT ERROR ==========");
@@ -227,12 +228,8 @@ export const createStudent = async (
     }
 };
 
-
-export const getStudents = async (
-    schoolId?: string,
-    studentClass?: string,
-    section?: string
-) => {
+export const getStudents = async (filter?: IStudentFilter) => {
+    const { schoolId, studentClass, section } = filter || {};
 
     let queryText = `
         SELECT 
@@ -247,7 +244,6 @@ export const getStudents = async (
 
     if (schoolId) {
         params.push(schoolId);
-
         queryText += `
             AND s.school_id = $${params.length}
         `;
@@ -255,7 +251,6 @@ export const getStudents = async (
 
     if (studentClass) {
         params.push(studentClass);
-
         queryText += `
             AND s.student_class = $${params.length}
         `;
@@ -263,7 +258,6 @@ export const getStudents = async (
 
     if (section) {
         params.push(section);
-
         queryText += `
             AND s.section = $${params.length}
         `;
@@ -274,6 +268,5 @@ export const getStudents = async (
     `;
 
     const result = await query(queryText, params);
-
     return result.rows;
 };

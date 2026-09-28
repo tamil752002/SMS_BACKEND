@@ -1,26 +1,12 @@
 import { getClient, query } from "../database/db.js";
+import { IMarkBulkAttendanceDTO } from "../interfaces/attendance.interface.js";
 
-
-/* =====================================================
-   1. BULK ATTENDANCE
-===================================================== */
-
-export const markBulkAttendance = async (
-    date: string,
-    session: string,
-    records: {
-        studentId: string;
-        status: string;
-    }[],
-    markedBy?: string
-) => {
-
+export const markBulkAttendance = async (data: IMarkBulkAttendanceDTO) => {
+    const { date, session, records, markedBy } = data;
     const client = await getClient();
 
     try {
-
         await client.query("BEGIN");
-
 
         const upsertQuery = `
             INSERT INTO attendance_records
@@ -41,22 +27,12 @@ export const markBulkAttendance = async (
                 timestamp = CURRENT_TIMESTAMP
         `;
 
-
         for (const record of records) {
+            const { studentId, status } = record;
 
-            const {
-                studentId,
-                status
-            } = record;
-
-
-            if (
-                !studentId ||
-                !["present", "absent"].includes(status)
-            ) {
+            if (!studentId || !["present", "absent"].includes(status)) {
                 continue;
             }
-
 
             await client.query(
                 upsertQuery,
@@ -70,30 +46,16 @@ export const markBulkAttendance = async (
             );
         }
 
-
         await client.query("COMMIT");
 
     } catch (error) {
-
         await client.query("ROLLBACK");
-
-        console.error(
-            "Mark Attendance Error:",
-            error
-        );
-
+        console.error("Mark Attendance Error:", error);
         throw error;
-
     } finally {
-
         client.release();
     }
 };
-
-
-/* =====================================================
-   2. GET CLASS ATTENDANCE
-===================================================== */
 
 export const getClassAttendance = async (
     schoolId: string,
@@ -102,7 +64,6 @@ export const getClassAttendance = async (
     section?: string,
     session: string = "morning"
 ) => {
-
     const result = await query(
         `SELECT
             s.id AS student_id,
@@ -115,11 +76,7 @@ export const getClassAttendance = async (
             ar.date,
             ar.session,
 
-            COALESCE(
-                ar.status,
-                'unmarked'
-            ) AS status,
-
+            COALESCE(ar.status, 'unmarked') AS status,
             ar.timestamp AS marked_at
 
         FROM students s
@@ -144,24 +101,11 @@ export const getClassAttendance = async (
         ]
     );
 
-
     const rows = result.rows;
-
-
     const totalStudents = rows.length;
-
-    const presentCount = rows.filter(
-        (student) => student.status === "present"
-    ).length;
-
-    const absentCount = rows.filter(
-        (student) => student.status === "absent"
-    ).length;
-
-    const unmarkedCount = rows.filter(
-        (student) => student.status === "unmarked"
-    ).length;
-
+    const presentCount = rows.filter((s) => s.status === "present").length;
+    const absentCount = rows.filter((s) => s.status === "absent").length;
+    const unmarkedCount = rows.filter((s) => s.status === "unmarked").length;
 
     return {
         date,
@@ -174,37 +118,21 @@ export const getClassAttendance = async (
     };
 };
 
-
-/* =====================================================
-   3. SINGLE STUDENT ATTENDANCE
-===================================================== */
-
 export const getStudentAttendance = async (
     studentId: string,
     month?: string,
     year?: string
 ) => {
-
     let filterQuery = "";
-
-    const params: string[] = [
-        studentId
-    ];
-
+    const params: string[] = [studentId];
 
     if (month && year) {
-
-        params.push(
-            year,
-            month
-        );
-
+        params.push(year, month);
         filterQuery = `
             AND EXTRACT(YEAR FROM date) = $2
             AND EXTRACT(MONTH FROM date) = $3
         `;
     }
-
 
     const historyResult = await query(
         `SELECT
@@ -213,47 +141,31 @@ export const getStudentAttendance = async (
             session,
             status,
             timestamp
-
          FROM attendance_records
-
          WHERE student_id = $1
          ${filterQuery}
-
          ORDER BY date DESC, session ASC`,
         params
     );
 
-
     const rows = historyResult.rows;
-
-
     const totalDays = rows.length;
-
-    const presentDays = rows.filter(
-        (row) => row.status === "present"
-    ).length;
-
-    const absentDays = rows.filter(
-        (row) => row.status === "absent"
-    ).length;
-
+    const presentDays = rows.filter((row) => row.status === "present").length;
+    const absentDays = rows.filter((row) => row.status === "absent").length;
 
     const percentage =
         totalDays > 0
             ? ((presentDays / totalDays) * 100).toFixed(1)
             : "0";
 
-
     return {
         studentId,
-
         summary: {
             totalDays,
             presentDays,
             absentDays,
             percentage: `${percentage}%`
         },
-
         history: rows
     };
 };

@@ -1,22 +1,19 @@
 import { getClient, query } from "../database/db.js";
+import { ISaveFeeStructureDTO, ICollectFeeDTO } from "../interfaces/fee.interface.js";
 
-
-/* =====================================================
-   1. CREATE / UPDATE FEE STRUCTURE
-===================================================== */
-
-export const saveFeeStructure = async (
-    schoolId: string,
-    className: string,
-    academicYear: string,
-    tuitionFee: number,
-    schoolFee: number,
-    examFee: number,
-    vanFee: number,
-    booksFee: number,
-    uniformFee: number,
-    otherFees: any[]
-) => {
+export const saveFeeStructure = async (data: ISaveFeeStructureDTO) => {
+    const {
+        schoolId,
+        className,
+        academicYear,
+        tuitionFee,
+        schoolFee,
+        examFee,
+        vanFee,
+        booksFee,
+        uniformFee,
+        otherFees
+    } = data;
 
     const result = await query(
         `INSERT INTO fee_structures (
@@ -35,14 +32,7 @@ export const saveFeeStructure = async (
             $1, $2, $3, $4, $5,
             $6, $7, $8, $9, $10::jsonb
         )
-
-        ON CONFLICT (
-            class_name,
-            academic_year,
-            structure_type,
-            school_id
-        )
-
+        ON CONFLICT (class_name, academic_year, school_id)
         DO UPDATE SET
             tuition_fee = EXCLUDED.tuition_fee,
             school_fee = EXCLUDED.school_fee,
@@ -52,7 +42,6 @@ export const saveFeeStructure = async (
             uniform_fee = EXCLUDED.uniform_fee,
             other_fees = EXCLUDED.other_fees,
             updated_at = CURRENT_TIMESTAMP
-
         RETURNING *`,
         [
             schoolId,
@@ -71,16 +60,10 @@ export const saveFeeStructure = async (
     return result.rows[0];
 };
 
-
-/* =====================================================
-   2. GET FEE STRUCTURES
-===================================================== */
-
 export const getFeeStructures = async (
     schoolId: string,
     academicYear?: string
 ) => {
-
     let sql = `
         SELECT *
         FROM fee_structures
@@ -89,292 +72,142 @@ export const getFeeStructures = async (
 
     const params: string[] = [schoolId];
 
-
     if (academicYear) {
-
-        sql += `
-            AND academic_year = $2
-        `;
-
         params.push(academicYear);
+        sql += ` AND academic_year = $2`;
     }
 
+    sql += ` ORDER BY class_name ASC`;
 
-    sql += `
-        ORDER BY class_name ASC
-    `;
-
-
-    const result = await query(
-        sql,
-        params
-    );
-
-
+    const result = await query(sql, params);
     return result.rows;
 };
 
-
-/* =====================================================
-   3. COLLECT FEE
-===================================================== */
-
-export const collectFee = async (
-    studentId: string,
-    academicYear: string,
-    feeType: string,
-    amount: number | undefined,
-    paidAmount: number,
-    paidDate: string,
-    receiptNumber?: string,
-    collectedBy?: string
-) => {
+export const collectFee = async (data: ICollectFeeDTO) => {
+    const {
+        studentId,
+        academicYear,
+        feeType,
+        amount,
+        paidAmount,
+        paidDate,
+        receiptNumber,
+        collectedBy
+    } = data;
 
     const client = await getClient();
 
-
     try {
-
         await client.query("BEGIN");
 
-
-        // Check existing fee record
-        const existing = await client.query(
-            `SELECT
-                id,
-                amount,
-                paid_amount
-
-             FROM fee_records
-
+        const existingResult = await client.query(
+            `SELECT * FROM fee_records
              WHERE student_id = $1
-             AND fee_type = $2
-             AND academic_year = $3`,
-            [
-                studentId,
-                feeType,
-                academicYear
-            ]
+               AND academic_year = $2
+               AND fee_type = $3`,
+            [studentId, academicYear, feeType]
         );
 
+        let feeRecord;
 
-        const totalAmount =
-            existing.rows.length > 0
-                ? parseFloat(existing.rows[0].amount)
-                : parseFloat(
-                    String(amount || paidAmount)
-                );
+        if (existingResult.rows.length > 0) {
+            const existing = existingResult.rows[0];
+            const newPaid = Number(existing.paid_amount) + paidAmount;
+            const remaining = Number(existing.amount) - newPaid;
+            const status = remaining <= 0 ? "paid" : "partial";
 
-
-        const currentPaid =
-            parseFloat(String(paidAmount));
-
-
-        if (currentPaid > totalAmount) {
-
-            throw new Error(
-                "Paid amount cannot exceed total fee amount"
-            );
-        }
-
-
-        const status =
-            currentPaid >= totalAmount
-                ? "paid"
-                : currentPaid > 0
-                    ? "partial"
-                    : "pending";
-
-
-        const autoReceipt =
-            receiptNumber ||
-            `REC-${Date.now()}`;
-
-
-        let result;
-
-
-        // UPDATE existing record
-        if (existing.rows.length > 0) {
-
-            result = await client.query(
+            const updateResult = await client.query(
                 `UPDATE fee_records
-
-                 SET
-                    paid_amount = $1,
-                    paid_date = $2,
-                    status = $3,
-                    receipt_number = $4,
-                    collected_by = $5,
-                    updated_at = CURRENT_TIMESTAMP
-
-                 WHERE id = $6
-
+                 SET paid_amount = $1,
+                     remaining_fee = $2,
+                     paid_date = $3,
+                     status = $4,
+                     receipt_number = COALESCE($5, receipt_number),
+                     collected_by = COALESCE($6, collected_by),
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $7
                  RETURNING *`,
                 [
-                    currentPaid,
+                    newPaid,
+                    Math.max(0, remaining),
                     paidDate,
                     status,
-                    autoReceipt,
+                    receiptNumber || null,
                     collectedBy || null,
-                    existing.rows[0].id
+                    existing.id
                 ]
             );
 
+            feeRecord = updateResult.rows[0];
 
         } else {
+            const totalAmount = amount || paidAmount;
+            const remaining = totalAmount - paidAmount;
+            const status = remaining <= 0 ? "paid" : "partial";
 
-            // INSERT new record
-            result = await client.query(
+            const insertResult = await client.query(
                 `INSERT INTO fee_records (
                     student_id,
                     academic_year,
                     fee_type,
                     amount,
                     paid_amount,
+                    remaining_fee,
                     paid_date,
                     status,
                     receipt_number,
                     collected_by
                 )
-
-                VALUES (
-                    $1, $2, $3, $4, $5,
-                    $6, $7, $8, $9
-                )
-
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                 RETURNING *`,
                 [
                     studentId,
                     academicYear,
                     feeType,
                     totalAmount,
-                    currentPaid,
+                    paidAmount,
+                    Math.max(0, remaining),
                     paidDate,
                     status,
-                    autoReceipt,
+                    receiptNumber || null,
                     collectedBy || null
                 ]
             );
+
+            feeRecord = insertResult.rows[0];
         }
 
-
         await client.query("COMMIT");
-
-
-        return result.rows[0];
+        return feeRecord;
 
     } catch (error) {
-
         await client.query("ROLLBACK");
-
-        console.error(
-            "Collect Fee Error:",
-            error
-        );
-
+        console.error("Collect Fee Error:", error);
         throw error;
-
     } finally {
-
         client.release();
     }
 };
-
-
-/* =====================================================
-   4. GET STUDENT FEES
-===================================================== */
 
 export const getStudentFees = async (
     studentId: string,
     academicYear?: string
 ) => {
-
     let sql = `
-        SELECT
-            id,
-            fee_type,
-            other_fee_name,
-            amount,
-            paid_amount,
-            remaining_fee,
-            status,
-            paid_date,
-            receipt_number,
-            academic_year
-
+        SELECT *
         FROM fee_records
-
         WHERE student_id = $1
     `;
 
-
-    const params: string[] = [
-        studentId
-    ];
-
+    const params: string[] = [studentId];
 
     if (academicYear) {
-
-        sql += `
-            AND academic_year = $2
-        `;
-
         params.push(academicYear);
+        sql += ` AND academic_year = $2`;
     }
 
+    sql += ` ORDER BY created_at DESC`;
 
-    sql += `
-        ORDER BY fee_type ASC
-    `;
-
-
-    const result = await query(
-        sql,
-        params
-    );
-
-
-    const records = result.rows;
-
-
-    const totalFees = records.reduce(
-        (sum, record) =>
-            sum + parseFloat(record.amount || 0),
-        0
-    );
-
-
-    const totalPaid = records.reduce(
-        (sum, record) =>
-            sum + parseFloat(record.paid_amount || 0),
-        0
-    );
-
-
-    const totalRemaining =
-        totalFees - totalPaid;
-
-
-    const status =
-        totalRemaining <= 0 && totalFees > 0
-            ? "fully_paid"
-            : totalPaid > 0
-                ? "partially_paid"
-                : "unpaid";
-
-
-    return {
-        studentId,
-
-        summary: {
-            totalFees,
-            totalPaid,
-            totalRemaining,
-            status
-        },
-
-        records
-    };
+    const result = await query(sql, params);
+    return result.rows;
 };

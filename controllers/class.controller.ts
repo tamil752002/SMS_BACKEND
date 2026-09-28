@@ -1,18 +1,11 @@
 import { Request, Response } from "express";
-
-import {
-    createClass,
-    getClasses
-} from "../services/class.services.js";
-
+import { createClass, getClasses } from "../services/class.services.js";
 
 export const createClassController = async (
     req: Request,
     res: Response
 ) => {
-
     try {
-
         const {
             schoolId,
             name,
@@ -21,69 +14,51 @@ export const createClassController = async (
             classTeacher
         } = req.body;
 
-
         if (!schoolId || !name) {
-
             return res.status(400).json({
                 error: "schoolId and name are required"
             });
         }
 
-
-        const newClass = await createClass(
+        const newClass = await createClass({
             schoolId,
             name,
             sections,
             medium,
             classTeacher
-        );
-
+        });
 
         return res.status(201).json({
-            message: "Class saved successfully",
+            message: "Class created/updated successfully",
             class: newClass
         });
 
-    } catch (error: any) {
-
-        console.error("Error creating class:", error);
-
+    } catch (error) {
+        console.error("Create Class Controller Error:", error);
         return res.status(500).json({
-            error: "Failed to create class"
+            error: "Failed to create/update class"
         });
     }
 };
-
 
 export const getClassesController = async (
     req: Request,
     res: Response
 ) => {
-
     try {
-
         const { schoolId } = req.query;
 
-
         if (!schoolId) {
-
             return res.status(400).json({
                 error: "schoolId is required"
             });
         }
 
-
-        const classes = await getClasses(
-            schoolId as string
-        );
-
-
+        const classes = await getClasses(schoolId as string);
         return res.status(200).json(classes);
 
     } catch (error) {
-
-        console.error("Error fetching classes:", error);
-
+        console.error("Get Classes Controller Error:", error);
         return res.status(500).json({
             error: "Failed to fetch classes"
         });

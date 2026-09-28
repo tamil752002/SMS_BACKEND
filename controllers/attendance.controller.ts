@@ -1,23 +1,15 @@
 import { Request, Response } from "express";
-
 import {
     markBulkAttendance,
     getClassAttendance,
     getStudentAttendance
 } from "../services/attendance.services.js";
 
-
-/* =====================================================
-   1. BULK ATTENDANCE
-===================================================== */
-
 export const markBulkAttendanceController = async (
     req: Request,
     res: Response
 ) => {
-
     try {
-
         const {
             date,
             session = "morning",
@@ -25,153 +17,92 @@ export const markBulkAttendanceController = async (
             markedBy
         } = req.body;
 
-
-        if (
-            !date ||
-            !Array.isArray(records) ||
-            records.length === 0
-        ) {
-
+        if (!date || !Array.isArray(records) || records.length === 0) {
             return res.status(400).json({
                 error: "date and a non-empty records array are required"
             });
         }
 
-
-        await markBulkAttendance(
+        await markBulkAttendance({
             date,
             session,
             records,
             markedBy
-        );
-
+        });
 
         return res.status(200).json({
-
-            message: `Attendance marked successfully for ${records.length} students`,
-
-            date,
-
-            session
+            message: "Attendance marked successfully"
         });
 
     } catch (error) {
-
-        console.error(
-            "Error saving attendance:",
-            error
-        );
-
+        console.error("Mark Attendance Controller Error:", error);
         return res.status(500).json({
-            error: "Failed to record attendance"
+            error: "Failed to mark attendance"
         });
     }
 };
-
-
-/* =====================================================
-   2. GET CLASS ATTENDANCE
-===================================================== */
 
 export const getClassAttendanceController = async (
     req: Request,
     res: Response
 ) => {
-
     try {
-
         const {
             schoolId,
             studentClass,
-            section,
             date,
+            section,
             session = "morning"
         } = req.query;
 
-
-        if (
-            !schoolId ||
-            !studentClass ||
-            !date
-        ) {
-
+        if (!schoolId || !studentClass || !date) {
             return res.status(400).json({
-
-                error:
-                    "schoolId, studentClass, and date are required query parameters"
+                error: "schoolId, studentClass, and date are required"
             });
         }
 
-
-        const attendance =
-            await getClassAttendance(
-                schoolId as string,
-                studentClass as string,
-                date as string,
-                section as string | undefined,
-                session as string
-            );
-
-
-        return res.status(200).json(
-            attendance
+        const attendance = await getClassAttendance(
+            schoolId as string,
+            studentClass as string,
+            date as string,
+            section as string | undefined,
+            session as string
         );
+
+        return res.status(200).json(attendance);
 
     } catch (error) {
-
-        console.error(
-            "Error fetching class attendance:",
-            error
-        );
-
+        console.error("Get Class Attendance Controller Error:", error);
         return res.status(500).json({
-            error: "Failed to fetch attendance"
+            error: "Failed to fetch class attendance"
         });
     }
 };
-
-
-/* =====================================================
-   3. SINGLE STUDENT ATTENDANCE
-===================================================== */
 
 export const getStudentAttendanceController = async (
     req: Request,
     res: Response
 ) => {
-
     try {
+        const { studentId } = req.params;
+        const { month, year } = req.query;
 
-        const {
-            studentId
-        } = req.params;
+        if (!studentId) {
+            return res.status(400).json({
+                error: "studentId is required"
+            });
+        }
 
-
-        const {
-            month,
-            year
-        } = req.query;
-
-
-        const attendance =
-            await getStudentAttendance(
-                studentId as string,
-                month as string | undefined,
-                year as string | undefined
-            );
-
-
-        return res.status(200).json(
-            attendance
+        const attendance = await getStudentAttendance(
+            studentId as string,
+            month as string | undefined,
+            year as string | undefined
         );
+
+        return res.status(200).json(attendance);
 
     } catch (error) {
-
-        console.error(
-            "Error fetching student attendance:",
-            error
-        );
-
+        console.error("Get Student Attendance Controller Error:", error);
         return res.status(500).json({
             error: "Failed to fetch student attendance"
         });

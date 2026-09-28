@@ -1,15 +1,17 @@
 import { getClient, query } from "../database/db.js";
+import { ICreateTeacherDTO } from "../interfaces/teacher.interface.js";
 
-export const createTeacher = async (
-    schoolId: string,
-    name: string,
-    username: string,
-    password: string,
-    email?: string,
-    phoneNumber?: string,
-    salary?: number,
-    joinDate?: string
-) => {
+export const createTeacher = async (data: ICreateTeacherDTO) => {
+    const {
+        schoolId,
+        name,
+        username,
+        password,
+        email,
+        phoneNumber,
+        salary,
+        joinDate
+    } = data;
 
     const client = await getClient();
 
@@ -101,22 +103,15 @@ export const createTeacher = async (
         };
 
     } catch (error) {
-
         await client.query("ROLLBACK");
-
         console.error("Create Teacher Error:", error);
-
         throw error;
-
     } finally {
-
         client.release();
     }
 };
 
-
 export const getTeachers = async (schoolId: string) => {
-
     const result = await query(
         `SELECT
             t.id AS teacher_id,

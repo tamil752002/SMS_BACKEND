@@ -1,12 +1,8 @@
 import { query } from "../database/db.js";
+import { ICreateClassDTO } from "../interfaces/class.interface.js";
 
-export const createClass = async (
-    schoolId: string,
-    name: string,
-    sections: string[],
-    medium: string[],
-    classTeacher?: string
-) => {
+export const createClass = async (data: ICreateClassDTO) => {
+    const { schoolId, name, sections, medium, classTeacher } = data;
 
     const result = await query(
         `INSERT INTO classes
@@ -39,11 +35,7 @@ export const createClass = async (
     return result.rows[0];
 };
 
-
-export const getClasses = async (
-    schoolId: string
-) => {
-
+export const getClasses = async (schoolId: string) => {
     const result = await query(
         `SELECT *
          FROM classes

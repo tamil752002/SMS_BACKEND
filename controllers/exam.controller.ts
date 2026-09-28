@@ -1,5 +1,4 @@
 import { Request, Response } from "express";
-
 import {
     createExam,
     getExams,
@@ -7,15 +6,11 @@ import {
     getStudentReportCard
 } from "../services/exam.services.js";
 
-
-// CREATE EXAM
 export const createExamController = async (
     req: Request,
     res: Response
 ) => {
-
     try {
-
         const {
             schoolId,
             name,
@@ -28,24 +23,13 @@ export const createExamController = async (
             totalMarks = 100
         } = req.body;
 
-
-        if (
-            !schoolId ||
-            !name ||
-            !type ||
-            !className ||
-            !academicYear
-        ) {
-
+        if (!schoolId || !name || !type || !className || !academicYear) {
             return res.status(400).json({
-                error:
-                    "schoolId, name, type, className, and academicYear are required"
+                error: "schoolId, name, type, className, and academicYear are required"
             });
-
         }
 
-
-        const exam = await createExam(
+        const exam = await createExam({
             schoolId,
             name,
             type,
@@ -55,8 +39,7 @@ export const createExamController = async (
             endDate,
             academicYear,
             totalMarks
-        );
-
+        });
 
         return res.status(201).json({
             message: "Exam created successfully",
@@ -64,40 +47,25 @@ export const createExamController = async (
         });
 
     } catch (error) {
-
-        console.error("Error creating exam:", error);
-
+        console.error("Create Exam Controller Error:", error);
         return res.status(500).json({
             error: "Failed to create exam"
         });
     }
 };
 
-
-
-// GET EXAMS
 export const getExamsController = async (
     req: Request,
     res: Response
 ) => {
-
     try {
-
-        const {
-            schoolId,
-            className,
-            academicYear
-        } = req.query;
-
+        const { schoolId, className, academicYear } = req.query;
 
         if (!schoolId) {
-
             return res.status(400).json({
                 error: "schoolId is required"
             });
-
         }
-
 
         const exams = await getExams(
             schoolId as string,
@@ -105,95 +73,68 @@ export const getExamsController = async (
             academicYear as string | undefined
         );
 
-
         return res.status(200).json(exams);
 
     } catch (error) {
-
-        console.error("Error fetching exams:", error);
-
+        console.error("Get Exams Controller Error:", error);
         return res.status(500).json({
             error: "Failed to fetch exams"
         });
     }
 };
 
-
-
-// BULK MARKS
 export const saveBulkMarksController = async (
     req: Request,
     res: Response
 ) => {
-
     try {
-
         const {
+            examId,
+            subject,
+            examType = "term",
+            academicYear,
+            marksList
+        } = req.body;
+
+        if (!examId || !subject || !Array.isArray(marksList) || marksList.length === 0) {
+            return res.status(400).json({
+                error: "examId, subject, and a non-empty marksList array are required"
+            });
+        }
+
+        await saveBulkMarks({
             examId,
             subject,
             examType,
             academicYear,
             marksList
-        } = req.body;
-
-
-        if (
-            !examId ||
-            !subject ||
-            !Array.isArray(marksList) ||
-            marksList.length === 0
-        ) {
-
-            return res.status(400).json({
-                error:
-                    "examId, subject, and marksList array are required"
-            });
-
-        }
-
-
-        const result = await saveBulkMarks(
-            examId,
-            subject,
-            examType || "Term Exam",
-            academicYear,
-            marksList
-        );
-
+        });
 
         return res.status(200).json({
-            message:
-                `Marks recorded successfully for ${result.count} students`,
-            subject: result.subject
+            message: "Marks saved successfully"
         });
 
     } catch (error) {
-
-        console.error("Error recording marks:", error);
-
+        console.error("Save Bulk Marks Controller Error:", error);
         return res.status(500).json({
-            error: "Failed to record marks"
+            error: "Failed to save marks"
         });
     }
 };
 
-
-
-// STUDENT REPORT CARD
 export const getStudentReportCardController = async (
     req: Request,
     res: Response
 ) => {
-
     try {
-
         const { studentId } = req.params;
+        const { examId, academicYear } = req.query;
 
-        const {
-            examId,
-            academicYear
-        } = req.query;
-
+        if (!studentId) {
+            return res.status(400).json({
+                error: "studentId is required"
+            });
+        }
 
         const reportCard = await getStudentReportCard(
             studentId as string,
@@ -201,16 +142,10 @@ export const getStudentReportCardController = async (
             academicYear as string | undefined
         );
 
-
         return res.status(200).json(reportCard);
 
     } catch (error) {
-
-        console.error(
-            "Error fetching report card:",
-            error
-        );
-
+        console.error("Get Student Report Card Controller Error:", error);
         return res.status(500).json({
             error: "Failed to fetch report card"
         });
